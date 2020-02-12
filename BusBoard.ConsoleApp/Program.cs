@@ -7,31 +7,77 @@ namespace BusBoard
 {
     class Program
     {
-        static void Main(string[] args)
+      private readonly TflApi tflApi = new TflApi();
+      private readonly PostcodesApi postcodesApi = new PostcodesApi();
+
+      static void Main()
+      {
+        //ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+
+        new Program().Run();
+      }
+
+      public void Run()
+      {
+        while (true)
         {
-            //ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+          var postcode = PromptForPostcode();
+          var coordinate = postcodesApi.GetCoordinateForPostcode(postcode);
 
-            var stopId = PromptForStopId();
+          if (coordinate == null)
+          {
+            Console.WriteLine("Sorry, I didn't recognise that postcode");
+            Console.WriteLine();
+            continue;
+          }
 
-            var predictions = new TflApi().GetArrivalPredictions(stopId);
-            var predictionsToDisplay = predictions.OrderBy(p => p.TimeToStation).Take(5);
-            DisplayPredictions(predictionsToDisplay);
+          var nearbyStops = tflApi.GetStopsNear(coordinate);
 
-            Console.ReadLine();
+          if (nearbyStops.Count == 0)
+          {
+            Console.WriteLine("Sorry, there are no bus stops near there");
+            Console.WriteLine();
+            continue;
+          }
+
+          foreach (var stop in nearbyStops.Take(2))
+          {
+            DisplayDepartureBoardForStop(stop);
+          }
+        }
+      }
+
+      private string PromptForPostcode()
+      {
+        Console.Write("Enter your postcode: ");
+        return Console.ReadLine(); // Example: "NW5 1TL"
+      }
+
+      private void DisplayDepartureBoardForStop(StopPoint stop)
+      {
+        Console.WriteLine($"Departure board for {stop.CommonName}");
+
+        var predictions = tflApi.GetArrivalPredictions(stop.NaptanId);
+
+        if (predictions.Count == 0)
+        {
+          Console.WriteLine("None");
+          Console.WriteLine();
+          return;
         }
 
-        private static string PromptForStopId()
-        {
-            Console.Write("Enter your stop ID: ");
-            return Console.ReadLine(); // Example: "490008660N"
-        }
+        var predictionsToDisplay = predictions.OrderBy(p => p.TimeToStation).Take(5);
+        DisplayPredictions(predictionsToDisplay);
 
-        private static void DisplayPredictions(IEnumerable<ArrivalPrediction> predictionsToDisplay)
+        Console.WriteLine();
+      }
+
+      private void DisplayPredictions(IEnumerable<ArrivalPrediction> predictionsToDisplay)
+      {
+        foreach (var prediction in predictionsToDisplay)
         {
-            foreach (var prediction in predictionsToDisplay)
-            {
-                Console.WriteLine($"{prediction.TimeToStation/60} minutes: {prediction.LineName} to {prediction.DestinationName}");
-            }
+          Console.WriteLine($"{prediction.TimeToStation/60} minutes: {prediction.LineName} to {prediction.DestinationName}");
         }
+      }
     }
 }
